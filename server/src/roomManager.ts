@@ -332,8 +332,13 @@ export class RoomManager {
     const engine = createEngine(stage.kind);
     engine.init(duo.id, stage.seed, stage.difficulty);
     room.engines.set(duo.id, engine);
-    duo.stageStartedAt = Date.now();
-    // Emit stageStart to both players of this duo.
+    // The engine is initialised but the playable phase doesn't start until
+    // the intro window has elapsed. `stageStartedAt` is set to that future
+    // moment so the client can detect the intro phase via `now < stageStartedAt`,
+    // and the run-clock + stage-timeout only count playable time.
+    duo.stageStartedAt = Date.now() + (stage.introMs ?? 0);
+    // Emit stageStart immediately so the client renders the overlay; the
+    // overlay reads `startedAt` and shows itself until that timestamp.
     this.emitToDuo(room, duo, (sock) =>
       sock.emit("stageStart", { duoId: duo.id, stage, startedAt: duo.stageStartedAt! })
     );
@@ -439,18 +444,24 @@ export class RoomManager {
         if (duo.stageIndex < 0 || duo.stageIndex >= room.plan.length) continue;
         const engine = room.engines.get(duo.id);
         if (!engine) continue;
-        // Tick engine
-        engine.tick?.(TICK_MS);
-        const status = engine.isDoneFor(duo.id);
-        if (status.done) {
-          this.endStageForDuo(room, duo, status.success);
-          continue;
-        }
-        // Stage timeout
-        const stage = room.plan[duo.stageIndex];
-        if (duo.stageStartedAt && now - duo.stageStartedAt > stage.durationMs) {
-          this.endStageForDuo(room, duo, false);
-          continue;
+        // Skip ticking + timeout while the duo is still inside the pre-stage
+        // intro window. We DO still emit minigame state so the client can
+        // show the initial position / glyph / palette while the player reads
+        // the rules; we just don't advance time-based state.
+        const inIntro = duo.stageStartedAt !== null && now < duo.stageStartedAt;
+        if (!inIntro) {
+          engine.tick?.(TICK_MS);
+          const status = engine.isDoneFor(duo.id);
+          if (status.done) {
+            this.endStageForDuo(room, duo, status.success);
+            continue;
+          }
+          // Stage timeout
+          const stage = room.plan[duo.stageIndex];
+          if (duo.stageStartedAt && now - duo.stageStartedAt > stage.durationMs) {
+            this.endStageForDuo(room, duo, false);
+            continue;
+          }
         }
         // Broadcast current minigame state to that duo's players.
         this.emitMinigameForDuo(room, duo);
@@ -466,6 +477,9 @@ export class RoomManager {
     if (player.role !== "blind") return;
     const duo = room.duos.find((d) => d.id === player.duoId);
     if (!duo || duo.runEndedAt !== null) return;
+    // Reject all actions during the pre-stage intro window so blind players
+    // can't fat-finger their way through the rules screen.
+    if (duo.stageStartedAt !== null && Date.now() < duo.stageStartedAt) return;
     const engine = room.engines.get(duo.id);
     if (!engine) return;
     engine.handleAction(duo.id, action);

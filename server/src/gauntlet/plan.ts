@@ -95,6 +95,11 @@ export function planGauntlet(masterSeed: number, length = GAUNTLET_LENGTH): Gaun
       durationMs,
       penaltyMs: 3000 + Math.round(difficulty * 3000), // 3s → 6s
       difficulty,
+      // 5s intro window. The client shows the full-screen rules overlay; the
+      // server holds engine.tick and rejects actions during this window so
+      // auto-ticking games (Runner / Monsters / WordSniper / Parkour /
+      // FlashGrid) don't burn time before the panel is visible.
+      introMs: 5000,
       restrictions: pickRestrictions(rng, i),
     });
   }

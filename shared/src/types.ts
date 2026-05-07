@@ -59,6 +59,13 @@ export interface GauntletStage {
   penaltyMs: number;
   difficulty: number;            // 0..1
   /**
+   * Pre-stage intro window in ms. During this window the client shows a
+   * full-screen explanation overlay and the server does not tick the engine
+   * or accept actions. The duo's `stageStartedAt` is set to the moment the
+   * intro ends, so `durationMs` is fully playable time.
+   */
+  introMs: number;
+  /**
    * Honour-system communication restrictions shown to the guide for this
    * stage. Empty array means no restrictions. The server doesn't enforce
    * these — they're displayed prominently and the spirit of the round

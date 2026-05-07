@@ -33,7 +33,13 @@ import ErrorBoundary from "../components/ErrorBoundary";
 import clsx from "clsx";
 
 export default function Game() {
-  const { room, myRole, myDuoId, minigameState, stageFlash, stageEndToast } = useStore();
+  const { room, myRole, myDuoId, minigameState, stageEndToast, clockSkewMs } = useStore();
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 100);
+    return () => clearInterval(t);
+  }, []);
+
   if (!room) return null;
   const myDuo = room.duos.find((d) => d.id === myDuoId);
   if (!myDuo) return <SpectatorMode />;
@@ -45,6 +51,17 @@ export default function Game() {
       : null;
   const isBlind = myRole === "blind";
 
+  // Pre-stage intro phase: server set duo.stageStartedAt to a future
+  // timestamp (introMs in the future). While the server clock has not yet
+  // reached that timestamp, the engine isn't ticking and actions are
+  // rejected — so we show the rules overlay instead of the panel.
+  const serverNow = now + clockSkewMs;
+  const inIntro =
+    !!stage &&
+    !finished &&
+    myDuo.stageStartedAt !== null &&
+    serverNow < myDuo.stageStartedAt;
+
   // Render the minigame panel if we have state and a stage.
   let panel: JSX.Element | null = null;
   if (finished) {
@@ -53,7 +70,7 @@ export default function Game() {
         <div className="text-sm uppercase text-slate-400 tracking-widest mb-2">
           Your run is complete
         </div>
-        <div className="text-5xl font-black text-amber-400 mb-2">
+        <div className="display text-5xl text-amber-400 mb-2">
           {((myDuo.totalTimeMs ?? 0) / 1000).toFixed(2)}s
         </div>
         <div className="text-slate-300">
@@ -67,12 +84,6 @@ export default function Game() {
       </div>
     );
   } else if (stage && minigameState) {
-    // Route by the state's discriminator, NOT stage.kind. During a stage
-    // transition the two can briefly disagree (new stage dispatched before
-    // the matching state snapshot arrives, or vice-versa), and rendering
-    // e.g. a MazeBlind with a RunnerBlindState shaped object used to blow up
-    // and black-screen the page. Matching on state.kind guarantees the
-    // component always receives a state of the exact shape it expects.
     const k = (minigameState as { kind?: string }).kind;
     if (k === "maze") panel = isBlind ? <MazeBlind state={minigameState as any} /> : <MazeGuide state={minigameState as any} />;
     else if (k === "sequence") panel = isBlind ? <SequenceBlind state={minigameState as any} /> : <SequenceGuide state={minigameState as any} />;
@@ -89,10 +100,21 @@ export default function Game() {
     else if (k === "wordsniper") panel = isBlind ? <WordSniperBlind state={minigameState as any} /> : <WordSniperGuide state={minigameState as any} />;
     else panel = <div className="card text-slate-400 text-center">Loading stage…</div>;
   } else {
-    panel = (
-      <div className="card text-slate-400 text-center">
-        Loading stage…
-      </div>
+    panel = <div className="card text-slate-400 text-center">Loading stage…</div>;
+  }
+
+  // During the intro phase we render ONLY the overlay — no top bar, no
+  // race progress, no notifications. Everything else is intentionally hidden
+  // so the player's whole attention is on the rules.
+  if (inIntro && stage && myDuo.stageStartedAt !== null) {
+    return (
+      <StageIntro
+        stage={stage}
+        role={isBlind ? "blind" : "guide"}
+        opensAt={myDuo.stageStartedAt}
+        now={serverNow}
+        totalStages={room.totalStages}
+      />
     );
   }
 
@@ -103,123 +125,250 @@ export default function Game() {
         isBlind ? "bg-indigo-900" : "bg-emerald-900"
       )}
     >
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 lg:gap-6">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 lg:gap-6">
         {/* Main column */}
         <div>
-          {/* Top bar */}
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <div>
-              <div className="text-xs text-slate-400 uppercase tracking-wider">
-                {stage
-                  ? `Stage ${stage.index + 1} / ${room.totalStages} · ${stage.kind.toUpperCase()}`
-                  : finished
-                  ? "Complete"
-                  : "..."}
-              </div>
-              <div className="text-2xl font-black">
-                You are{" "}
-                <span className={isBlind ? "text-indigo-300" : "text-emerald-300"}>
-                  {isBlind ? "BLIND" : "GUIDE"}
-                </span>{" "}
-                <span className="text-slate-500 text-sm font-normal">
-                  · {myDuo.label}
+          {/* Streamlined top bar: stage tag + role pill on left, timers on right.
+              Player names are intentionally not shown here. */}
+          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              {stage && (
+                <span
+                  className={clsx(
+                    "tile heading text-sm",
+                    KIND_COLOR[stage.kind] ?? "bg-amber-400",
+                    "text-slate-900"
+                  )}
+                >
+                  {KIND_LABEL[stage.kind] ?? stage.kind} · {stage.index + 1}/{room.totalStages}
                 </span>
-              </div>
+              )}
+              <span
+                className={clsx(
+                  "badge text-sm",
+                  isBlind ? "bg-indigo-400 text-slate-900" : "bg-emerald-400 text-slate-900"
+                )}
+              >
+                {isBlind ? "Blind" : "Guide"}
+              </span>
             </div>
-            <div className="flex flex-col items-end gap-1">
-              <GlobalTimer
-                startedAt={myDuo.runStartedAt}
-                frozenAt={myDuo.runEndedAt}
-                penaltyMs={myDuo.penaltyMs}
-                label={finished ? "FINAL" : "RUN TIME"}
-              />
+            <div className="flex items-center gap-3">
               {stage && myDuo.stageStartedAt && !finished && (
                 <StageCountdown
                   startedAt={myDuo.stageStartedAt}
                   durationMs={stage.durationMs}
                 />
               )}
+              <GlobalTimer
+                startedAt={myDuo.runStartedAt}
+                frozenAt={myDuo.runEndedAt}
+                penaltyMs={myDuo.penaltyMs}
+                label={finished ? "Final" : "Run"}
+              />
             </div>
           </div>
 
-          {/* Honour-system communication restriction banner — only the
-              guide sees it; blind doesn't need to know the rule. */}
+          {/* Restriction banner — only the guide sees it. */}
           {!isBlind && stage && stage.restrictions.length > 0 && !finished && (
             <div
-              className="rounded-2xl border-[3px] border-slate-900 bg-amber-300 text-slate-900 px-4 py-3 mb-3 font-black"
-              style={{ boxShadow: "0 6px 0 0 rgb(15 23 42)" }}
+              className="rounded-lg border-[3px] border-slate-900 bg-amber-300 text-slate-900 px-4 py-2 mb-3"
+              style={{ boxShadow: "0 4px 0 0 rgb(15 23 42)" }}
             >
-              <div className="text-[10px] uppercase tracking-[0.25em] mb-1">
-                Stage Rule{stage.restrictions.length > 1 ? "s" : ""}
+              <div className="heading text-xs mb-0.5">
+                Rule{stage.restrictions.length > 1 ? "s" : ""}
               </div>
-              <ul className="space-y-0.5">
+              <ul>
                 {stage.restrictions.map((r, i) => (
-                  <li key={i} className="text-sm">· {r}</li>
+                  <li key={i} className="text-sm font-bold">· {r}</li>
                 ))}
               </ul>
             </div>
           )}
 
-          <ErrorBoundary resetKey={`${myDuo.stageIndex}:${(minigameState as { kind?: string } | null)?.kind ?? ""}`}>
+          <ErrorBoundary
+            resetKey={`${myDuo.stageIndex}:${(minigameState as { kind?: string } | null)?.kind ?? ""}`}
+          >
             {panel}
           </ErrorBoundary>
-
-          {/* Role hint */}
-          <div className={clsx("card mt-4 text-xs text-slate-400 leading-relaxed", isBlind ? "border-l-4 border-indigo-400" : "border-l-4 border-emerald-400")}>
-            {isBlind ? (
-              <>
-                <p className="font-bold text-indigo-300 mb-1">You are the Blind.</p>
-                <p>
-                  You can't see the puzzle. Listen to your guide and press the
-                  buttons they tell you to press. Next minigame starts the
-                  instant this one ends — keep your focus.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="font-bold text-emerald-300 mb-1">You are the Guide.</p>
-                <p>
-                  Your partner only has the action buttons. Speak fast, speak
-                  clearly — the clock never stops.
-                </p>
-              </>
-            )}
-          </div>
         </div>
 
-        {/* Right column */}
+        {/* Right column — kept compact: race progress and recent events. */}
         <div className="space-y-3">
           <RaceProgress room={room} highlightDuoId={myDuoId} />
-          <NotificationsTicker
-            items={room.notifications}
-            highlightDuoId={myDuoId}
-          />
+          <NotificationsTicker items={room.notifications} highlightDuoId={myDuoId} limit={4} />
         </div>
       </div>
 
-      {/* Stage flash overlay */}
-      {stageFlash && (
-        <StageFlash kind={stageFlash.stage.kind} index={stageFlash.stage.index} total={room.totalStages} />
-      )}
-      {/* Stage end toast — chunky party-game banner with pop/shake. */}
+      {/* Stage-end toast */}
       {stageEndToast && (
         <div
           key={`toast-${stageEndToast.timeMs}-${stageEndToast.penaltyMs}`}
           className={clsx(
-            "fixed top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-2xl font-black z-40 border-[3px] border-slate-900 text-xl",
+            "fixed top-6 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg heading z-40 border-[3px] border-slate-900 text-xl",
             stageEndToast.success ? "bg-lime-300 text-slate-900 celebrate" : "bg-rose-500 text-white shake"
           )}
           style={{ boxShadow: "0 8px 0 0 rgb(15 23 42)" }}
         >
           {stageEndToast.success
-            ? `STAGE CLEARED — ${(stageEndToast.timeMs / 1000).toFixed(1)}s`
-            : `STAGE FAILED — +${(stageEndToast.penaltyMs / 1000).toFixed(0)}s`}
+            ? `Stage cleared — ${(stageEndToast.timeMs / 1000).toFixed(1)}s`
+            : `Stage failed — +${(stageEndToast.penaltyMs / 1000).toFixed(0)}s`}
         </div>
       )}
     </div>
   );
 }
 
+// ---------- Per-game rules text ----------
+// Two short sentences per role per game. These show full-screen during the
+// intro window, replacing the old micro "STAGE FLASH" overlay.
+type GameRules = { headline: string; blind: string[]; guide: string[] };
+const RULES: Record<string, GameRules> = {
+  maze: {
+    headline: "Walk the maze.",
+    blind: [
+      "Press the arrow your guide calls.",
+      "Walls bump. Spikes are instant fail.",
+    ],
+    guide: [
+      "You see the maze, the spikes, and the goal.",
+      "Steer them safely to the star.",
+    ],
+  },
+  sequence: {
+    headline: "Match the sequence.",
+    blind: [
+      "Press colours in the order your guide says.",
+      "Three mistakes and you're out.",
+    ],
+    guide: [
+      "You see the colour sequence.",
+      "Read it out loud, one colour at a time.",
+    ],
+  },
+  defusal: {
+    headline: "Defuse the bomb.",
+    blind: [
+      "Wires, switches, a keypad. Do exactly what your guide says.",
+      "One wrong move and it blows.",
+    ],
+    guide: [
+      "You have the rule book and the target codes.",
+      "Read each step. They press the buttons.",
+    ],
+  },
+  runner: {
+    headline: "Don't trip.",
+    blind: [
+      "Just hit JUMP when your guide yells NOW.",
+      "Time it wrong and you crash.",
+    ],
+    guide: [
+      "You see obstacles racing toward your runner.",
+      "Yell JUMP at the right instant.",
+    ],
+  },
+  parkour: {
+    headline: "Climb to the goal.",
+    blind: [
+      "LEFT, RIGHT, JUMP, Q for jump-left, E for jump-right.",
+      "Spikes kill. Falls kill. Listen carefully.",
+    ],
+    guide: [
+      "You see platforms, spikes, and the goal flag.",
+      "Tell them when to walk, when to leap, and which direction.",
+    ],
+  },
+  monsters: {
+    headline: "Strike the right side.",
+    blind: [
+      "Hit LEFT or RIGHT exactly when your guide says.",
+      "Wrong side = instant fail. Too slow = also fail.",
+    ],
+    guide: [
+      "Monsters charge from left or right.",
+      "Yell the side at the moment of impact.",
+    ],
+  },
+  flashgrid: {
+    headline: "Memorise. Repeat.",
+    blind: [
+      "Tap the grid cells your guide names.",
+      "One wrong tap and the round ends.",
+    ],
+    guide: [
+      "Cells will flash on a 3×3 grid for 2 seconds.",
+      "Memorise their positions, then describe them.",
+    ],
+  },
+  signal: {
+    headline: "Tune the signal.",
+    blind: [
+      "Tune left or right. Hit LOCK only when your guide says.",
+      "You see signal bars, but not the actual frequency.",
+    ],
+    guide: [
+      "You see the dial and the target band.",
+      "Direct them in, then call LOCK in the green zone.",
+    ],
+  },
+  tapvoid: {
+    headline: "Tap the void.",
+    blind: [
+      "Your screen is BLACK. Tap blind to find the hidden target.",
+      "After each tap you'll hear warmer or colder.",
+    ],
+    guide: [
+      "You see the target and the blind's last tap.",
+      "Direct them onto the green ring — no directional words allowed.",
+    ],
+  },
+  symbolscribe: {
+    headline: "Pick the glyph.",
+    blind: [
+      "Twelve abstract symbols. Pick the one your guide describes.",
+      "Two wrong picks and the round fails.",
+    ],
+    guide: [
+      "You see one weird glyph at a time.",
+      "Describe it without saying what it looks like — invent words.",
+    ],
+  },
+  liarliar: {
+    headline: "Find the lie.",
+    blind: [
+      "Cut the wires in the order your guide says.",
+      "One wrong cut and it explodes.",
+    ],
+    guide: [
+      "Five rules describe the cut order. Exactly ONE rule is a lie.",
+      "Cross-check, find the contradiction, then call out the cuts.",
+    ],
+  },
+  memorytower: {
+    headline: "Stack the tower.",
+    blind: [
+      "Tap icons in the order your guide reads them.",
+      "One wrong tap collapses the whole stack.",
+    ],
+    guide: [
+      "You see the target stack from bottom up.",
+      "Read the icons in order. They tap.",
+    ],
+  },
+  wordsniper: {
+    headline: "Snipe the targets.",
+    blind: [
+      "Hit FIRE when your guide yells NOW.",
+      "Misses cost. Don't spam the button.",
+    ],
+    guide: [
+      "Target words flow across in gold.",
+      "Yell NOW the moment a target enters the band.",
+    ],
+  },
+};
+
+// ---------- Game-kind metadata ----------
 const KIND_LABEL: Record<string, string> = {
   maze: "Maze",
   sequence: "Sequence",
@@ -251,23 +400,108 @@ const KIND_COLOR: Record<string, string> = {
   wordsniper: "bg-yellow-400",
 };
 
-function StageFlash({ kind, index, total }: { kind: string; index: number; total: number }) {
-  const color = KIND_COLOR[kind] ?? "bg-amber-400";
-  const label = KIND_LABEL[kind] ?? kind.toUpperCase();
+// ---------- Pre-stage intro ----------
+import type { GauntletStage } from "@blindman/shared";
+
+function StageIntro({
+  stage,
+  role,
+  opensAt,
+  now,
+  totalStages,
+}: {
+  stage: GauntletStage;
+  role: "blind" | "guide";
+  opensAt: number;
+  now: number;
+  totalStages: number;
+}) {
+  const remainingMs = Math.max(0, opensAt - now);
+  const seconds = Math.ceil(remainingMs / 1000);
+
+  const rules = RULES[stage.kind] ?? {
+    headline: stage.kind.toUpperCase(),
+    blind: ["Listen to your guide. Press what they say."],
+    guide: ["Tell your blind partner what to press."],
+  };
+  const lines = role === "blind" ? rules.blind : rules.guide;
+  const colourClass = KIND_COLOR[stage.kind] ?? "bg-amber-400";
+  const label = KIND_LABEL[stage.kind] ?? stage.kind;
+
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-30 pointer-events-none">
-      <div
-        className={clsx(
-          "rounded-3xl border-[4px] border-slate-900 px-14 py-10 text-center stage-slam",
-          color
-        )}
-        style={{ boxShadow: "0 10px 0 0 rgb(15 23 42)" }}
-      >
-        <div className="text-xs uppercase tracking-[0.25em] text-slate-900/80 font-black mb-2">
-          Stage {index + 1} / {total}
+    <div
+      className={clsx(
+        "min-h-screen flex items-center justify-center p-6",
+        role === "blind" ? "bg-indigo-900" : "bg-emerald-900"
+      )}
+    >
+      <div className="w-full max-w-2xl intro-in text-center">
+        {/* Stage tag */}
+        <div className="mb-4 flex justify-center">
+          <span className={clsx("tile heading text-base text-slate-900", colourClass)}>
+            Stage {stage.index + 1} / {totalStages}
+          </span>
         </div>
-        <div className="text-6xl font-black text-slate-900 display">
-          {label.toUpperCase()}
+
+        {/* Massive game name */}
+        <h1 className="display text-6xl sm:text-7xl text-white mb-3 leading-none">
+          {label}
+        </h1>
+
+        {/* Headline tagline */}
+        <p className="heading text-2xl text-amber-300 mb-8">{rules.headline}</p>
+
+        {/* Role tag */}
+        <div className="mb-4 flex justify-center">
+          <span
+            className={clsx(
+              "badge text-sm px-4 py-2",
+              role === "blind" ? "bg-indigo-400 text-slate-900" : "bg-emerald-400 text-slate-900"
+            )}
+          >
+            You are the {role === "blind" ? "Blind" : "Guide"}
+          </span>
+        </div>
+
+        {/* Rules — two big lines, easy to scan in 5 seconds */}
+        <div className="space-y-3 mb-6">
+          {lines.map((line, i) => (
+            <div
+              key={i}
+              className="rounded-lg border-[3px] border-slate-900 bg-slate-900/80 px-5 py-4 text-xl font-bold text-white"
+              style={{ boxShadow: "0 5px 0 0 rgb(15 23 42)" }}
+            >
+              {line}
+            </div>
+          ))}
+        </div>
+
+        {/* Guide-only restrictions, surfaced here as well so they land before
+            the round starts. */}
+        {role === "guide" && stage.restrictions.length > 0 && (
+          <div
+            className="rounded-lg border-[3px] border-slate-900 bg-amber-300 text-slate-900 px-4 py-3 mb-6"
+            style={{ boxShadow: "0 5px 0 0 rgb(15 23 42)" }}
+          >
+            <div className="heading text-sm mb-1">
+              Rule{stage.restrictions.length > 1 ? "s" : ""}
+            </div>
+            <ul className="space-y-1">
+              {stage.restrictions.map((r, i) => (
+                <li key={i} className="text-base font-bold">· {r}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Pulsing countdown digit */}
+        <div className="flex flex-col items-center gap-2">
+          <div className="text-xs uppercase tracking-[0.3em] text-white/70 heading">
+            Starts in
+          </div>
+          <div className="display text-7xl text-amber-300 countdown-pulse">
+            {seconds}
+          </div>
         </div>
       </div>
     </div>
@@ -288,8 +522,6 @@ function StageCountdown({
     const t = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(t);
   }, []);
-  // startedAt is a server epoch — correct for clock skew so the display
-  // stays in sync with the server-side deadline.
   const serverNow = now + clockSkewMs;
   const remaining = Math.max(0, startedAt + durationMs - serverNow);
   const secs = (remaining / 1000).toFixed(1);
@@ -297,12 +529,12 @@ function StageCountdown({
   const warn = remaining < 10000 && !danger;
   return (
     <div className="text-right">
-      <div className="text-[10px] uppercase tracking-widest text-slate-300 font-bold">
+      <div className="text-[10px] uppercase tracking-widest text-slate-300 heading">
         Stage
       </div>
       <div
         className={clsx(
-          "font-mono text-lg font-black tabular-nums",
+          "timer text-lg font-bold tabular-nums",
           danger ? "pressure" : warn ? "text-amber-300" : "text-slate-200"
         )}
       >
@@ -318,7 +550,7 @@ function SpectatorMode() {
   return (
     <div className="min-h-screen p-6 bg-slate-950">
       <div className="max-w-4xl mx-auto">
-        <h2 className="text-2xl font-black mb-4">Spectating</h2>
+        <h2 className="display text-3xl text-white mb-4">Spectating</h2>
         <RaceProgress room={room} />
         <div className="mt-4">
           <NotificationsTicker items={room.notifications} limit={12} />

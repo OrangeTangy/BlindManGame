@@ -4,24 +4,54 @@
 
 html, body, #root { height: 100%; }
 
+/* -------- Type system --------
+ * Body: Space Grotesk — clean, modern, geometric, NOT rounded. Has personality
+ *       without looking corporate.
+ * Display: Bungee — chunky block-shadow lettering, very Jackbox. Bungee only
+ *          has one weight (400) and looks best UPPERCASE.
+ * Mono: DM Mono — for timers and counters where tabular alignment matters. */
 body {
-  font-family: "Fredoka", "Nunito", "Baloo 2", "Poppins", ui-rounded,
-    system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 500;
   color: #fff8ee;
-  /* Flat, solid party-tile purple. No gradients. */
   background-color: #5b1aa6;
+  letter-spacing: -0.005em;
+}
+
+/* Anything we want to feel "title" -- stage names, hero headings, the big
+ * feedback callouts -- gets the chunky display face. We force uppercase
+ * because Bungee is designed for it (lowercase is functional but visually
+ * messier). The text-shadow gives a single offset hard-shadow that matches
+ * the chunky button shadow. */
+.display, .heading {
+  font-family: "Bungee", "Space Grotesk", sans-serif;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+.display {
+  text-shadow: 0 4px 0 rgb(15 23 42);
+}
+
+/* Tabular timer face. */
+.font-mono, .timer {
+  font-family: "DM Mono", ui-monospace, "Cascadia Mono", "Menlo", monospace;
+  font-feature-settings: "tnum" 1;
 }
 
 @layer components {
-  /* Chunky flat button: thick dark border, offset hard shadow, press-down. */
+  /* Chunky flat button: thick dark border, offset hard shadow, press-down.
+   * Less rounded than before (rounded-lg ≈ 8 px) for a sharper edge. */
   .btn {
-    @apply inline-flex items-center justify-center rounded-2xl px-5 py-3 font-extrabold uppercase tracking-wide
+    @apply inline-flex items-center justify-center rounded-lg px-5 py-3 font-extrabold uppercase tracking-wide
            border-[3px] border-slate-900
            transition-transform duration-75 ease-out
            active:translate-y-[3px] active:shadow-[0_0_0_0_rgba(0,0,0,0.9)]
            disabled:opacity-50 disabled:cursor-not-allowed disabled:active:translate-y-0;
     box-shadow: 0 6px 0 0 rgb(15 23 42);
-    letter-spacing: 0.03em;
+    font-family: "Bungee", "Space Grotesk", sans-serif;
+    font-weight: 400;
+    letter-spacing: 0.05em;
   }
   .btn-primary { @apply btn bg-amber-400   text-slate-900 hover:bg-amber-300; }
   .btn-ghost   { @apply btn bg-indigo-500  text-white     hover:bg-indigo-400; }
@@ -30,44 +60,39 @@ body {
   .btn-cool    { @apply btn bg-cyan-400    text-slate-900 hover:bg-cyan-300; }
   .btn-go      { @apply btn bg-emerald-400 text-slate-900 hover:bg-emerald-300; }
 
-  /* Flat card with chunky border + offset hard shadow. */
+  /* Cards. Squarer corners than before — was rounded-3xl, now rounded-xl. */
   .card {
-    @apply rounded-3xl bg-slate-900 border-[3px] border-slate-900 p-5;
+    @apply rounded-xl bg-slate-900 border-[3px] border-slate-900 p-5;
     box-shadow: 0 8px 0 0 rgb(15 23 42);
   }
-  /* Bright solid-color variant — for team tiles, standings rows, etc. */
   .card-bright {
-    @apply rounded-3xl p-5 border-[3px] border-slate-900 text-slate-900 font-bold;
+    @apply rounded-xl p-5 border-[3px] border-slate-900 text-slate-900 font-bold;
     box-shadow: 0 8px 0 0 rgb(15 23 42);
   }
 
   .input {
-    @apply w-full rounded-2xl bg-slate-50 text-slate-900 placeholder-slate-400
+    @apply w-full rounded-lg bg-slate-50 text-slate-900 placeholder-slate-400
            border-[3px] border-slate-900 px-4 py-3 font-bold outline-none
            focus:ring-4 focus:ring-amber-400/60;
     box-shadow: 0 4px 0 0 rgb(15 23 42);
   }
 
+  /* Badges: small, square-ish (rounded-md ≈ 6 px). Was pill-shaped. */
   .badge {
-    @apply inline-block rounded-full px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wider
+    @apply inline-block rounded-md px-2 py-0.5 text-[11px] uppercase tracking-wider
            border-2 border-slate-900;
+    font-family: "Bungee", "Space Grotesk", sans-serif;
+    font-weight: 400;
   }
 
-  /* Heavy display heading — single flat drop shadow, no stacked layers. */
-  .display {
-    font-weight: 900;
-    letter-spacing: -0.01em;
-    text-shadow: 0 4px 0 rgb(15 23 42);
-  }
-
-  /* Bright solid tiles for headers/badges — used in e.g. room code sticker. */
+  /* Bright solid tiles for header tags / room-code stickers. */
   .tile {
-    @apply rounded-2xl border-[3px] border-slate-900 px-3 py-1;
+    @apply rounded-lg border-[3px] border-slate-900 px-3 py-1;
     box-shadow: 0 4px 0 0 rgb(15 23 42);
   }
 }
 
-/* -------- Animations (no gradients) -------- */
+/* -------- Animations -------- */
 @keyframes pulseGlow {
   0%,100% { box-shadow: 0 6px 0 0 rgb(15 23 42), 0 0 0 0 rgba(251,191,36,0.75); }
   50%     { box-shadow: 0 6px 0 0 rgb(15 23 42), 0 0 0 14px rgba(251,191,36,0); }
@@ -81,14 +106,12 @@ body {
 }
 .pop { animation: pop 220ms cubic-bezier(0.34,1.56,0.64,1) both; }
 
-/* Parkour landing pop — small squash-stretch used by the player dot. */
 @keyframes parkourPop {
   0%   { transform: scale(1.0); }
   40%  { transform: scale(1.18, 0.86); }
   100% { transform: scale(1.0); }
 }
 
-/* Dramatic stage intro: slam in, hold, fade. */
 @keyframes stageSlam {
   0%   { transform: scale(1.8) rotate(-4deg); opacity: 0; }
   20%  { transform: scale(0.94) rotate(1deg); opacity: 1; }
@@ -98,7 +121,6 @@ body {
 }
 .stage-slam { animation: stageSlam 900ms cubic-bezier(0.34,1.56,0.64,1) both; }
 
-/* Screen shake for failure. */
 @keyframes shake {
   0%,100% { transform: translateX(0); }
   20% { transform: translateX(-6px); }
@@ -108,7 +130,6 @@ body {
 }
 .shake { animation: shake 320ms ease-in-out both; }
 
-/* Confetti-style celebration flash. */
 @keyframes celebrate {
   0%   { transform: scale(0.6); opacity: 0; }
   35%  { transform: scale(1.12); opacity: 1; }
@@ -117,9 +138,25 @@ body {
 }
 .celebrate { animation: celebrate 900ms cubic-bezier(0.34,1.56,0.64,1) both; }
 
-/* Timer pressure pulse — low-clock heartbeat. */
 @keyframes pressure {
   0%,100% { transform: scale(1); color: rgb(248 113 113); }
   50%     { transform: scale(1.08); color: rgb(254 202 202); }
 }
 .pressure { animation: pressure 520ms ease-in-out infinite; }
+
+/* Pre-stage intro overlay — slam in, hold, then fade out as the playable
+ * phase begins. No automatic exit; the React component unmounts when the
+ * intro window ends. */
+@keyframes introIn {
+  0%   { transform: translateY(20px) scale(0.96); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+.intro-in { animation: introIn 320ms cubic-bezier(0.34,1.56,0.64,1) both; }
+
+/* Big circular countdown digit pulse. */
+@keyframes countdownPulse {
+  0%   { transform: scale(1.0); }
+  50%  { transform: scale(1.15); }
+  100% { transform: scale(1.0); }
+}
+.countdown-pulse { animation: countdownPulse 0.95s ease-in-out infinite; }
