@@ -64,7 +64,32 @@ Add more duos by opening additional tabs and pressing **Join this team** on any 
 
 ## Deployment
 
-### Frontend → Vercel
+### One-click deploy (recommended) — single Render service
+
+The server now serves the built client from the same origin, so a single
+Render web service is all you need. No Vercel, no CORS config, one URL to
+share.
+
+1. **Render** → New → **Blueprint** → connect this repo. Render reads
+   `render.yaml` and provisions the service automatically.
+2. Wait ~3 minutes for the first build.
+3. Visit `https://<your-service>.onrender.com`. Tab A creates a room, tab
+   B joins.
+
+If you'd rather set it up manually:
+
+- Type: **Web Service**, runtime **Node**
+- Build Command: `npm install && npm run build`
+- Start Command: `npm run start`
+- Health Check Path: `/health`
+- Env: `NODE_VERSION=20`, `CLIENT_ORIGIN=*`
+
+> **Free-tier caveat:** Render free services spin down after ~15 minutes
+> of inactivity. The first request after that takes ~30–60 s while the
+> container wakes up. Tell your friends to be patient on the very first
+> click; subsequent clicks are instant.
+
+### Split deploy — Frontend → Vercel
 
 1. Import this repo into Vercel.
 2. **Root directory:** `client`

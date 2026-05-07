@@ -1,0 +1,29 @@
+# Render blueprint — one-click deploy.
+#
+# Usage (any of):
+#   1. Push this file to GitHub. In Render, go to "Blueprints" → "New Blueprint
+#      Instance" → connect this repo. Render reads this file and provisions
+#      the service.
+#   2. Or use the "Deploy to Render" button in the README.
+#   3. Or set up manually as a Web Service with the same Build / Start
+#      commands listed below.
+#
+# The single web service serves both the Socket.IO backend and the built
+# client (Vite dist) on the same origin — no Vercel needed.
+services:
+  - type: web
+    name: blindman
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # CLIENT_ORIGIN can stay as "*" since the client is served from the
+      # same origin as the websocket. Tighten to a specific URL only if
+      # you split client and server across two services.
+      - key: CLIENT_ORIGIN
+        value: "*"

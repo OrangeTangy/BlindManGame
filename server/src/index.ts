@@ -2,6 +2,8 @@ import "dotenv/config";
 import express from "express";
 import http from "http";
 import cors from "cors";
+import path from "path";
+import fs from "fs";
 import { Server } from "socket.io";
 import type {
   ClientToServerEvents,
@@ -14,8 +16,33 @@ const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "*";
 
 const app = express();
 app.use(cors({ origin: CLIENT_ORIGIN }));
-app.get("/", (_req, res) => res.json({ ok: true, service: "blindman-server" }));
+
+// Health endpoints — always present so platforms like Render can probe the
+// service. /health is the canonical one; / is a friendly JSON for humans.
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+// In production we serve the built client from the same origin as the
+// socket. This collapses Render+Vercel into a single Render service. The
+// compiled server lives in server/dist, so client/dist is two levels up.
+const CLIENT_DIST = path.resolve(__dirname, "..", "..", "client", "dist");
+const hasClientBuild = fs.existsSync(path.join(CLIENT_DIST, "index.html"));
+
+if (hasClientBuild) {
+  console.log(`[server] serving client from ${CLIENT_DIST}`);
+  app.use(express.static(CLIENT_DIST));
+  // SPA fallback — everything that didn't match an asset returns index.html.
+  // Routes starting with /socket.io/ or /health are handled above and never
+  // reach this fallback.
+  app.get(/^\/(?!socket\.io|health).*/, (_req, res) => {
+    res.sendFile(path.join(CLIENT_DIST, "index.html"));
+  });
+} else {
+  // No build present (dev mode or backend-only deploy). Keep the original
+  // behaviour: a JSON greeting at root so it's obvious the API is up.
+  app.get("/", (_req, res) =>
+    res.json({ ok: true, service: "blindman-server", note: "client build not bundled — running API only" })
+  );
+}
 
 const httpServer = http.createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
