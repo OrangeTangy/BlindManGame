@@ -10,7 +10,12 @@ export type MinigameKind =
   | "parkour"
   | "monsters"
   | "flashgrid"
-  | "signal";
+  | "signal"
+  | "tapvoid"
+  | "symbolscribe"
+  | "liarliar"
+  | "memorytower"
+  | "wordsniper";
 
 // Legacy alias — some older code referred to this.
 export type MinigameId = MinigameKind;
@@ -53,6 +58,13 @@ export interface GauntletStage {
   durationMs: number;
   penaltyMs: number;
   difficulty: number;            // 0..1
+  /**
+   * Honour-system communication restrictions shown to the guide for this
+   * stage. Empty array means no restrictions. The server doesn't enforce
+   * these — they're displayed prominently and the spirit of the round
+   * depends on the players policing each other.
+   */
+  restrictions: string[];
 }
 
 export interface GauntletNotification {

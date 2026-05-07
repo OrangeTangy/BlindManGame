@@ -12,6 +12,11 @@ import { ParkourEngine } from "./parkour";
 import { MonstersEngine } from "./monsters";
 import { FlashGridEngine } from "./flashgrid";
 import { SignalEngine } from "./signal";
+import { TapVoidEngine } from "./tapvoid";
+import { SymbolScribeEngine } from "./symbolscribe";
+import { LiarLiarEngine } from "./liarliar";
+import { MemoryTowerEngine } from "./memorytower";
+import { WordSniperEngine } from "./wordsniper";
 
 /**
  * One engine instance manages a single duo's state for a single stage.
@@ -31,13 +36,18 @@ export interface MinigameEngine {
 
 export function createEngine(kind: MinigameKind): MinigameEngine {
   switch (kind) {
-    case "maze":     return new MazeEngine();
-    case "sequence": return new SequenceEngine();
-    case "defusal":  return new DefusalEngine();
-    case "runner":   return new RunnerEngine();
-    case "parkour":  return new ParkourEngine();
-    case "monsters": return new MonstersEngine();
-    case "flashgrid": return new FlashGridEngine();
-    case "signal":    return new SignalEngine();
+    case "maze":         return new MazeEngine();
+    case "sequence":     return new SequenceEngine();
+    case "defusal":      return new DefusalEngine();
+    case "runner":       return new RunnerEngine();
+    case "parkour":      return new ParkourEngine();
+    case "monsters":     return new MonstersEngine();
+    case "flashgrid":    return new FlashGridEngine();
+    case "signal":       return new SignalEngine();
+    case "tapvoid":      return new TapVoidEngine();
+    case "symbolscribe": return new SymbolScribeEngine();
+    case "liarliar":     return new LiarLiarEngine();
+    case "memorytower":  return new MemoryTowerEngine();
+    case "wordsniper":   return new WordSniperEngine();
   }
 }

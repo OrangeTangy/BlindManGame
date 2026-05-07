@@ -187,6 +187,114 @@ export type SignalAction =
   | { type: "tuneSmall"; dir: "left" | "right" }
   | { type: "lock" };
 
+// ---------- TapVoid (black-screen tap with warmer/colder) ----------
+export interface TapVoidGuideState {
+  kind: "tapvoid";
+  /** Target position normalised 0..1 inside the arena. */
+  target: { x: number; y: number };
+  /** Last tap from blind (normalised), or null. */
+  lastTap: { x: number; y: number } | null;
+  cleared: number;
+  total: number;
+  /** Hit threshold (Euclidean distance in 0..1 units). */
+  threshold: number;
+}
+export interface TapVoidBlindState {
+  kind: "tapvoid";
+  cleared: number;
+  total: number;
+  /** "warmer" / "colder" relative to the previous tap; "hit" on success. */
+  lastFeedback: "none" | "warmer" | "colder" | "hit";
+}
+export type TapVoidAction = { type: "tapAt"; x: number; y: number };
+
+// ---------- SymbolScribe (abstract glyph match) ----------
+export interface SymbolScribeGuideState {
+  kind: "symbolscribe";
+  /** Current target glyph id — guide must describe it without naming it. */
+  target: number;
+  cleared: number;
+  total: number;
+}
+export interface SymbolScribeBlindState {
+  kind: "symbolscribe";
+  /** 12 candidate glyph ids; blind picks the right one. */
+  candidates: number[];
+  cleared: number;
+  total: number;
+  lastFeedback: "none" | "correct" | "wrong";
+}
+export type SymbolScribeAction = { type: "pick"; glyphId: number };
+
+// ---------- LiarLiar (defusal with one fake rule) ----------
+export type LiarLiarColor = "red" | "blue" | "yellow" | "green";
+export interface LiarLiarGuideState {
+  kind: "liarliar";
+  wires: LiarLiarColor[];
+  /** Five statements; exactly one is false. Guide must spot which. */
+  rules: string[];
+  /** Wire indices already cut, in cut order. */
+  cuts: number[];
+  feedback: "none" | "correct" | "wrong";
+}
+export interface LiarLiarBlindState {
+  kind: "liarliar";
+  wires: LiarLiarColor[];
+  cuts: number[];
+  feedback: "none" | "correct" | "wrong";
+}
+export type LiarLiarAction = { type: "cutLL"; index: number };
+
+// ---------- MemoryTower (icon stack with collapse-on-wrong) ----------
+export interface MemoryTowerGuideState {
+  kind: "memorytower";
+  /** Target stack as ordered palette indices, bottom-first. Always visible to guide. */
+  target: number[];
+  /** Built so far (resets to empty on a wrong placement). */
+  built: number[];
+  paletteSize: number;
+}
+export interface MemoryTowerBlindState {
+  kind: "memorytower";
+  built: number[];
+  /** How many items still required. */
+  remaining: number;
+  paletteSize: number;
+  /** "wrong" = stack just collapsed. */
+  lastFeedback: "none" | "correct" | "wrong";
+}
+export type MemoryTowerAction = { type: "place"; index: number };
+
+// ---------- WordSniper (timing + text) ----------
+export interface WordSniperWord {
+  id: number;
+  text: string;
+  /** Horizontal position 0..1, 0 = right edge (entry), 1 = left edge (exit). */
+  x: number;
+  lane: number;
+  /** Only the guide sees this flag. */
+  target: boolean;
+}
+export interface WordSniperGuideState {
+  kind: "wordsniper";
+  words: WordSniperWord[];
+  /** Centre fire-zone in normalised coords [lo, hi]. */
+  fireZone: [number, number];
+  hits: number;
+  misses: number;
+  hitsRequired: number;
+  missesAllowed: number;
+}
+export interface WordSniperBlindState {
+  kind: "wordsniper";
+  hits: number;
+  misses: number;
+  hitsRequired: number;
+  missesAllowed: number;
+  lastFeedback: "none" | "hit" | "miss";
+}
+export type WordSniperAction = { type: "fire" };
+
 // ---------- Unions ----------
 export type AnyMinigameAction =
   | MazeAction
@@ -196,7 +304,12 @@ export type AnyMinigameAction =
   | ParkourAction
   | MonstersAction
   | FlashGridAction
-  | SignalAction;
+  | SignalAction
+  | TapVoidAction
+  | SymbolScribeAction
+  | LiarLiarAction
+  | MemoryTowerAction
+  | WordSniperAction;
 
 export type MinigameBlindState =
   | MazeBlindState
@@ -206,7 +319,12 @@ export type MinigameBlindState =
   | ParkourBlindState
   | MonstersBlindState
   | FlashGridBlindState
-  | SignalBlindState;
+  | SignalBlindState
+  | TapVoidBlindState
+  | SymbolScribeBlindState
+  | LiarLiarBlindState
+  | MemoryTowerBlindState
+  | WordSniperBlindState;
 
 export type MinigameGuideState =
   | MazePublicState
@@ -216,4 +334,9 @@ export type MinigameGuideState =
   | ParkourGuideState
   | MonstersGuideState
   | FlashGridGuideState
-  | SignalGuideState;
+  | SignalGuideState
+  | TapVoidGuideState
+  | SymbolScribeGuideState
+  | LiarLiarGuideState
+  | MemoryTowerGuideState
+  | WordSniperGuideState;

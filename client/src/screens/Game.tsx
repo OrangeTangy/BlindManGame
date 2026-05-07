@@ -19,6 +19,16 @@ import SignalGuide from "../minigames/Signal/Guide";
 import MonstersGuide from "../minigames/Monsters/Guide";
 import FlashGridBlind from "../minigames/FlashGrid/Blind";
 import FlashGridGuide from "../minigames/FlashGrid/Guide";
+import TapVoidBlind from "../minigames/TapVoid/Blind";
+import TapVoidGuide from "../minigames/TapVoid/Guide";
+import SymbolScribeBlind from "../minigames/SymbolScribe/Blind";
+import SymbolScribeGuide from "../minigames/SymbolScribe/Guide";
+import LiarLiarBlind from "../minigames/LiarLiar/Blind";
+import LiarLiarGuide from "../minigames/LiarLiar/Guide";
+import MemoryTowerBlind from "../minigames/MemoryTower/Blind";
+import MemoryTowerGuide from "../minigames/MemoryTower/Guide";
+import WordSniperBlind from "../minigames/WordSniper/Blind";
+import WordSniperGuide from "../minigames/WordSniper/Guide";
 import ErrorBoundary from "../components/ErrorBoundary";
 import clsx from "clsx";
 
@@ -72,6 +82,11 @@ export default function Game() {
     else if (k === "monsters") panel = isBlind ? <MonstersBlind state={minigameState as any} /> : <MonstersGuide state={minigameState as any} />;
     else if (k === "signal") panel = isBlind ? <SignalBlind state={minigameState as any} /> : <SignalGuide state={minigameState as any} />;
     else if (k === "flashgrid") panel = isBlind ? <FlashGridBlind state={minigameState as any} /> : <FlashGridGuide state={minigameState as any} />;
+    else if (k === "tapvoid") panel = isBlind ? <TapVoidBlind state={minigameState as any} /> : <TapVoidGuide state={minigameState as any} />;
+    else if (k === "symbolscribe") panel = isBlind ? <SymbolScribeBlind state={minigameState as any} /> : <SymbolScribeGuide state={minigameState as any} />;
+    else if (k === "liarliar") panel = isBlind ? <LiarLiarBlind state={minigameState as any} /> : <LiarLiarGuide state={minigameState as any} />;
+    else if (k === "memorytower") panel = isBlind ? <MemoryTowerBlind state={minigameState as any} /> : <MemoryTowerGuide state={minigameState as any} />;
+    else if (k === "wordsniper") panel = isBlind ? <WordSniperBlind state={minigameState as any} /> : <WordSniperGuide state={minigameState as any} />;
     else panel = <div className="card text-slate-400 text-center">Loading stage…</div>;
   } else {
     panel = (
@@ -126,6 +141,24 @@ export default function Game() {
               )}
             </div>
           </div>
+
+          {/* Honour-system communication restriction banner — only the
+              guide sees it; blind doesn't need to know the rule. */}
+          {!isBlind && stage && stage.restrictions.length > 0 && !finished && (
+            <div
+              className="rounded-2xl border-[3px] border-slate-900 bg-amber-300 text-slate-900 px-4 py-3 mb-3 font-black"
+              style={{ boxShadow: "0 6px 0 0 rgb(15 23 42)" }}
+            >
+              <div className="text-[10px] uppercase tracking-[0.25em] mb-1">
+                Stage Rule{stage.restrictions.length > 1 ? "s" : ""}
+              </div>
+              <ul className="space-y-0.5">
+                {stage.restrictions.map((r, i) => (
+                  <li key={i} className="text-sm">· {r}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <ErrorBoundary resetKey={`${myDuo.stageIndex}:${(minigameState as { kind?: string } | null)?.kind ?? ""}`}>
             {panel}
@@ -196,6 +229,11 @@ const KIND_LABEL: Record<string, string> = {
   monsters: "Monsters",
   signal: "Signal",
   flashgrid: "Flash Grid",
+  tapvoid: "Tap the Void",
+  symbolscribe: "Symbol Scribe",
+  liarliar: "Liar Liar",
+  memorytower: "Memory Tower",
+  wordsniper: "Word Sniper",
 };
 const KIND_COLOR: Record<string, string> = {
   maze: "bg-fuchsia-400",
@@ -206,6 +244,11 @@ const KIND_COLOR: Record<string, string> = {
   monsters: "bg-violet-400",
   signal: "bg-sky-400",
   flashgrid: "bg-lime-400",
+  tapvoid: "bg-slate-400",
+  symbolscribe: "bg-orange-400",
+  liarliar: "bg-red-400",
+  memorytower: "bg-teal-400",
+  wordsniper: "bg-yellow-400",
 };
 
 function StageFlash({ kind, index, total }: { kind: string; index: number; total: number }) {
