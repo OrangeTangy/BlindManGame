@@ -7,6 +7,7 @@ import fs from "fs";
 import { Server } from "socket.io";
 import { RoomManager } from "./roomManager";
 import { CoupRoomManager } from "./coup/coupRoomManager";
+import { AmoebaRoomManager } from "./amoeba/amoebaRoomManager";
 
 const PORT = Number(process.env.PORT || 3001);
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "*";
@@ -38,6 +39,7 @@ const io = new Server(httpServer, {
 
 const blindmanRooms = new RoomManager(io as any);
 const coupRooms = new CoupRoomManager(io as any);
+const amoebaRooms = new AmoebaRoomManager(io as any);
 
 io.on("connection", (socket: any) => {
   // ---- BlindMan events ----
@@ -120,10 +122,55 @@ io.on("connection", (socket: any) => {
     coupRooms.handleExchangeReturn(socket, returnCards)
   );
 
+  // ---- Amoeba events ----
+  socket.on("amoebaCreateRoom", ({ name }: any, cb: any) => {
+    try {
+      const { code, playerId } = amoebaRooms.createRoom(socket, name);
+      cb({ ok: true, data: { code, playerId } });
+    } catch (e: any) {
+      cb({ ok: false, error: e.message || "create failed" });
+    }
+  });
+  socket.on("amoebaJoinRoom", ({ code, name }: any, cb: any) => {
+    try {
+      const { playerId } = amoebaRooms.joinRoom(socket, code, name);
+      cb({ ok: true, data: { playerId } });
+    } catch (e: any) {
+      cb({ ok: false, error: e.message || "join failed" });
+    }
+  });
+  socket.on("amoebaRejoinRoom", ({ code, name }: any, cb: any) => {
+    try {
+      const { playerId } = amoebaRooms.rejoin(socket, code, name);
+      cb({ ok: true, data: { playerId } });
+    } catch (e: any) {
+      cb({ ok: false, error: e.message || "rejoin failed" });
+    }
+  });
+  socket.on("amoebaStartGame", () => amoebaRooms.handleStartGame(socket));
+  socket.on("amoebaSubmitPrompt", ({ prompt }: any) =>
+    amoebaRooms.handleSubmitPrompt(socket, prompt)
+  );
+  socket.on("amoebaSubmitAnswer", ({ answer }: any) =>
+    amoebaRooms.handleSubmitAnswer(socket, answer)
+  );
+  socket.on("amoebaFinishAnswerReveal", () =>
+    amoebaRooms.handleFinishAnswerReveal(socket)
+  );
+  socket.on("amoebaMakeGuess", ({ targetPlayerId, guessedAnswer }: any) =>
+    amoebaRooms.handleMakeGuess(socket, targetPlayerId, guessedAnswer)
+  );
+  socket.on("amoebaUpdateSettings", ({ settings }: any) =>
+    amoebaRooms.handleUpdateSettings(socket, settings)
+  );
+  socket.on("amoebaPlayAgain", () => amoebaRooms.handlePlayAgain(socket));
+  socket.on("amoebaLeaveRoom", () => amoebaRooms.handleLeaveRoom(socket));
+
   // ---- Shared disconnect ----
   socket.on("disconnect", () => {
     blindmanRooms.handleDisconnect(socket);
     coupRooms.handleDisconnect(socket);
+    amoebaRooms.handleDisconnect(socket);
   });
 });
 

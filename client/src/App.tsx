@@ -8,13 +8,14 @@ import Game from "./screens/Game";
 import MatchSummary from "./screens/MatchSummary";
 import Connecting from "./screens/Connecting";
 import CoupApp from "./coup/CoupApp";
+import AmoebaApp from "./amoeba/AmoebaApp";
 
-export type ActiveGame = "none" | "blindman" | "coup";
+export type ActiveGame = "none" | "blindman" | "coup" | "amoeba";
 
 export default function App() {
   const [activeGame, setActiveGame] = useState<ActiveGame>(() => {
     const saved = localStorage.getItem("hub:activeGame");
-    if (saved === "blindman" || saved === "coup") return saved;
+    if (saved === "blindman" || saved === "coup" || saved === "amoeba") return saved;
     return "none";
   });
   const [connected, setConnectedState] = useState(socket.connected);
@@ -58,6 +59,9 @@ export default function App() {
   }
   if (activeGame === "coup") {
     return <CoupApp onBack={goHome} />;
+  }
+  if (activeGame === "amoeba") {
+    return <AmoebaApp onBack={goHome} />;
   }
 
   return <Home onSelectGame={selectGame} />;

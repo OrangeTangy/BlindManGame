@@ -21,6 +21,16 @@ const GAMES = [
     players: "2-6",
     icon: "🗡️",
   },
+  {
+    id: "amoeba" as ActiveGame,
+    title: "Amoeba",
+    subtitle: "Answer. Guess. Absorb.",
+    description: "Write anonymous answers to a prompt. Captains guess who wrote what — correct guesses absorb rivals into your amoeba. Last amoeba standing wins.",
+    color: "bg-cyan-600",
+    hoverColor: "hover:bg-cyan-500",
+    players: "3-12",
+    icon: "🦠",
+  },
 ];
 
 export default function Home({ onSelectGame }: { onSelectGame: (game: ActiveGame) => void }) {
