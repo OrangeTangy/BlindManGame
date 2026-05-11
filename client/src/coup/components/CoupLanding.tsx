@@ -1,20 +1,9 @@
 import { useState } from "react";
-import { socket } from "../socket";
-import { useStore } from "../store";
+import { socket } from "../../socket";
+import { useCoupStore } from "../coupStore";
 
-const GAME_CHIPS: { label: string; bg: string }[] = [
-  { label: "Maze", bg: "bg-fuchsia-400" },
-  { label: "Sequence", bg: "bg-cyan-400" },
-  { label: "Defusal", bg: "bg-rose-400" },
-  { label: "Runner", bg: "bg-amber-400" },
-  { label: "Parkour", bg: "bg-emerald-400" },
-  { label: "Monsters", bg: "bg-violet-400" },
-  { label: "Signal", bg: "bg-sky-400" },
-  { label: "Flash Grid", bg: "bg-lime-400" },
-];
-
-export default function Landing({ onBack }: { onBack?: () => void }) {
-  const { myName, setName, setToast } = useStore();
+export default function CoupLanding({ onBack }: { onBack: () => void }) {
+  const { myName, setName, setToast } = useCoupStore();
   const [mode, setMode] = useState<"menu" | "create" | "join">("menu");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -22,7 +11,7 @@ export default function Landing({ onBack }: { onBack?: () => void }) {
   const create = () => {
     if (!myName.trim()) return setToast("Enter a name first.");
     setBusy(true);
-    socket.emit("createRoom", { name: myName.trim() }, (res: any) => {
+    socket.emit("coupCreateRoom" as any, { name: myName.trim() }, (res: any) => {
       setBusy(false);
       if (!res.ok) setToast(res.error);
     });
@@ -32,7 +21,7 @@ export default function Landing({ onBack }: { onBack?: () => void }) {
     if (!code.trim()) return setToast("Enter a room code.");
     setBusy(true);
     socket.emit(
-      "joinRoom",
+      "coupJoinRoom" as any,
       { code: code.trim().toUpperCase(), name: myName.trim() },
       (res: any) => {
         setBusy(false);
@@ -46,27 +35,25 @@ export default function Landing({ onBack }: { onBack?: () => void }) {
       <div className="w-full max-w-xl">
         <div className="text-center mb-8 pop">
           <h1 className="display text-6xl sm:text-7xl tracking-tight leading-none">
-            <span className="text-amber-300">Blind</span>
-            <span className="text-white"> &amp; </span>
-            <span className="text-cyan-300">Guide</span>
+            <span className="text-rose-400">Coup</span>
           </h1>
           <p className="mt-4 text-lg font-bold text-white/80">
-            One sees. One acts. Talk fast — the clock is running.
+            Bluff. Steal. Survive. Last player standing wins.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2">
-            {GAME_CHIPS.map((chip) => (
+            {["Duke", "Assassin", "Captain", "Ambassador", "Contessa"].map((c) => (
               <span
-                key={chip.label}
-                className={`tile text-slate-900 font-extrabold text-sm ${chip.bg}`}
+                key={c}
+                className={`tile text-slate-900 font-extrabold text-sm ${cardColor(c)}`}
               >
-                {chip.label}
+                {c}
               </span>
             ))}
           </div>
         </div>
 
         <div className="card pop">
-          <label className="block text-xs font-extrabold uppercase tracking-widest text-amber-300 mb-2">
+          <label className="block text-xs font-extrabold uppercase tracking-widest text-rose-400 mb-2">
             Your name
           </label>
           <input
@@ -135,18 +122,26 @@ export default function Landing({ onBack }: { onBack?: () => void }) {
         </div>
 
         <div className="mt-6 text-center text-xs text-white/60 font-semibold">
-          <p>Two players per duo · roles auto-assigned · 10 minigames, fastest wins.</p>
-          <p className="mt-1">Sit next to your partner — talk out loud, no voice chat needed.</p>
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="mt-4 text-amber-300 hover:text-amber-200 font-bold text-sm uppercase tracking-wide"
-            >
-              &larr; Back to Game Hub
-            </button>
-          )}
+          <p>2-6 players · bluff with hidden influence cards · last player alive wins.</p>
+          <button
+            onClick={onBack}
+            className="mt-4 text-amber-300 hover:text-amber-200 font-bold text-sm uppercase tracking-wide"
+          >
+            &larr; Back to Game Hub
+          </button>
         </div>
       </div>
     </div>
   );
+}
+
+function cardColor(name: string): string {
+  switch (name.toLowerCase()) {
+    case "duke": return "bg-violet-400";
+    case "assassin": return "bg-slate-400";
+    case "captain": return "bg-sky-400";
+    case "ambassador": return "bg-emerald-400";
+    case "contessa": return "bg-rose-400";
+    default: return "bg-gray-400";
+  }
 }

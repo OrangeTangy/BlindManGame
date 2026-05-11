@@ -1,38 +1,78 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { socket } from "./socket";
 import { useStore } from "./store";
+import Home from "./screens/Home";
 import Landing from "./screens/Landing";
 import Lobby from "./screens/Lobby";
 import Game from "./screens/Game";
 import MatchSummary from "./screens/MatchSummary";
 import Connecting from "./screens/Connecting";
+import CoupApp from "./coup/CoupApp";
+
+export type ActiveGame = "none" | "blindman" | "coup";
 
 export default function App() {
-  const {
-    screen, connected, connectionError, room,
-    setConnected, setConnectionError, setRoom, setYouAre,
-    setMinigameState, setStage, setStageFlash, setStageEndToast,
-    setToast, setScreen, setClockSkew,
-  } = useStore();
+  const [activeGame, setActiveGame] = useState<ActiveGame>(() => {
+    const saved = localStorage.getItem("hub:activeGame");
+    if (saved === "blindman" || saved === "coup") return saved;
+    return "none";
+  });
+  const [connected, setConnectedState] = useState(socket.connected);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
     const onConnect = () => {
-      setConnected(true);
+      setConnectedState(true);
       setConnectionError(null);
-      const last = localStorage.getItem("blindman:lastRoom");
-      const name = localStorage.getItem("blindman:name");
-      if (last && name) {
-        socket.emit("rejoinRoom", { code: last, name }, (res: any) => {
-          if (res?.ok) setScreen("room");
-          else localStorage.removeItem("blindman:lastRoom");
-        });
-      }
     };
-    const onDisconnect = () => setConnected(false);
+    const onDisconnect = () => setConnectedState(false);
     const onConnectError = (err: Error) =>
       setConnectionError(err.message || "connection error");
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", onConnectError);
+
+    if (socket.connected) onConnect();
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onConnectError);
+    };
+  }, []);
+
+  const selectGame = (game: ActiveGame) => {
+    localStorage.setItem("hub:activeGame", game);
+    setActiveGame(game);
+  };
+
+  const goHome = () => {
+    localStorage.removeItem("hub:activeGame");
+    setActiveGame("none");
+  };
+
+  if (!connected) return <Connecting error={connectionError} />;
+
+  if (activeGame === "blindman") {
+    return <BlindManApp onBack={goHome} />;
+  }
+  if (activeGame === "coup") {
+    return <CoupApp onBack={goHome} />;
+  }
+
+  return <Home onSelectGame={selectGame} />;
+}
+
+function BlindManApp({ onBack }: { onBack: () => void }) {
+  const {
+    screen, room,
+    setConnected, setConnectionError, setRoom, setYouAre,
+    setMinigameState, setStage, setStageFlash, setStageEndToast,
+    setToast, setScreen, setClockSkew, reset,
+  } = useStore();
+
+  useEffect(() => {
     const onRoom = (r: any) => {
-      // Estimate clock skew from server timestamp
       if (r.serverNow) setClockSkew(r.serverNow - Date.now());
       setRoom(r);
       localStorage.setItem("blindman:lastRoom", r.code);
@@ -46,7 +86,6 @@ export default function App() {
         duoId: p.duoId, stage: p.stage, startedAt: p.startedAt, shownAt: Date.now(),
       });
       setMinigameState(null);
-      // auto-clear flash
       setTimeout(() => {
         const cur = useStore.getState().stageFlash;
         if (cur && cur.stage.index === p.stage.index) setStageFlash(null);
@@ -67,9 +106,6 @@ export default function App() {
       setTimeout(() => setToast(null), 3000);
     };
 
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-    socket.on("connect_error", onConnectError);
     socket.on("room", onRoom);
     socket.on("youAre", onYouAre);
     socket.on("minigameState", onMini);
@@ -77,11 +113,17 @@ export default function App() {
     socket.on("stageEnd", onStageEnd);
     socket.on("errorMessage", onError);
 
-    if (socket.connected) onConnect();
+    // Try rejoin
+    const last = localStorage.getItem("blindman:lastRoom");
+    const name = localStorage.getItem("blindman:name");
+    if (last && name) {
+      socket.emit("rejoinRoom", { code: last, name }, (res: any) => {
+        if (res?.ok) setScreen("room");
+        else localStorage.removeItem("blindman:lastRoom");
+      });
+    }
+
     return () => {
-      socket.off("connect", onConnect);
-      socket.off("disconnect", onDisconnect);
-      socket.off("connect_error", onConnectError);
       socket.off("room", onRoom);
       socket.off("youAre", onYouAre);
       socket.off("minigameState", onMini);
@@ -91,10 +133,14 @@ export default function App() {
     };
   }, []);
 
-  if (!connected) return <Connecting error={connectionError} />;
+  const handleBack = () => {
+    socket.emit("leaveRoom");
+    reset();
+    onBack();
+  };
 
   let body: JSX.Element;
-  if (screen === "landing" || !room) body = <Landing />;
+  if (screen === "landing" || !room) body = <Landing onBack={handleBack} />;
   else {
     switch (room.phase) {
       case "lobby":

@@ -12,7 +12,7 @@
 # client (Vite dist) on the same origin — no Vercel needed.
 services:
   - type: web
-    name: blindman
+    name: gamehub
     runtime: node
     plan: free
     region: oregon
